@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterable, Protocol, Sequence
 
 from .models import Deal, DealScore, ensure_aware
@@ -62,8 +62,13 @@ class DealPipeline:
 
     def _collect_deals(self) -> list[Deal]:
         deals: list[Deal] = []
+        since_time: datetime | None
+        if self.freshness_cutoff_hours <= 0:
+            since_time = None
+        else:
+            since_time = self.now - timedelta(hours=self.freshness_cutoff_hours)
         for connector in self.connectors:
-            deals.extend(connector.fetch_deals(since=self.now))
+            deals.extend(connector.fetch_deals(since=since_time))
         if not deals:
             raise DealCurationError("No deals were returned by connectors")
         return deals
