@@ -19,6 +19,18 @@ class StaticConnector:
         return self._deals
 
 
+class SinceAwareConnector:
+    def __init__(self, deals: Sequence[Deal]) -> None:
+        self._deals = list(deals)
+        self.requested_since: datetime | None = None
+
+    def fetch_deals(self, *, since: datetime | None = None) -> Sequence[Deal]:  # type: ignore[override]
+        self.requested_since = since
+        if since is None:
+            return list(self._deals)
+        return [deal for deal in self._deals if deal.listed_at >= since]
+
+
 def _deal(
     *,
     id: str,
@@ -117,3 +129,43 @@ def test_pipeline_prioritises_rarity_on_ties() -> None:
     top_deals = pipeline.run()
 
     assert [deal.deal.id for deal in top_deals] == ["rare", "common"]
+
+
+def test_pipeline_passes_expected_since_to_connectors() -> None:
+    now = datetime(2024, 1, 10, tzinfo=timezone.utc)
+    freshness_cutoff = 48
+    expected_since = now - timedelta(hours=freshness_cutoff)
+    fresh_deal = Deal(
+        id="fresh",
+        title="Fresh Deal",
+        url="https://example.com/fresh",
+        price=10,
+        original_price=100,
+        source="trusted_marketplace",
+        listed_at=now - timedelta(hours=2),
+        rarity_score=0.5,
+        inventory=5,
+    )
+    stale_deal = Deal(
+        id="stale",
+        title="Stale Deal",
+        url="https://example.com/stale",
+        price=10,
+        original_price=100,
+        source="trusted_marketplace",
+        listed_at=now - timedelta(hours=120),
+        rarity_score=0.5,
+        inventory=5,
+    )
+    connector = SinceAwareConnector([fresh_deal, stale_deal])
+    pipeline = DealPipeline(
+        connectors=[connector],
+        now=now,
+        max_deals=1,
+        freshness_cutoff_hours=freshness_cutoff,
+    )
+
+    top_deals = pipeline.run()
+
+    assert connector.requested_since == expected_since
+    assert [deal.deal.id for deal in top_deals] == ["fresh"]

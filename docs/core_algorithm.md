@@ -86,6 +86,8 @@ The initial production-grade implementation in this repository ships with:
 - `realdeals.scoring.DealScorer` – Deterministic feature weighting for discount, rarity, freshness, trust, and inventory signals.
 - `realdeals.pipeline.DealPipeline` – Coordinates fetching from pluggable connectors, deduplicates candidates, filters by
   freshness/discount thresholds, scores every eligible listing, and guarantees the final collection contains exactly ten items.
+  Connectors receive a `since` timestamp derived from the configured freshness window so they can avoid returning stale
+  inventory.
 - `realdeals.tests.test_pipeline` – Pytest suite covering deduplication, eligibility filtering, scarcity handling, and the
   "exactly ten" invariant.
 
